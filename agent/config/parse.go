@@ -30,7 +30,7 @@ import (
 func parseCheckpoint(dataDir string) BooleanDefaultFalse {
 	checkPoint := parseBooleanDefaultFalseConfig("ECS_CHECKPOINT")
 	if dataDir != "" {
-		// if we have a directory to checkpoint to, default it to be on
+		// if we have a directory to checkpoint to, default it to be uon
 		if checkPoint.Value == NotSet {
 			checkPoint.Value = ExplicitlyEnabled
 		}
@@ -229,6 +229,9 @@ func parseBooleanDefaultFalseConfig(envVarName string) BooleanDefaultFalse {
 	} else {
 		seelog.Warnf("Invalid format for \"%s\", expected a boolean. err %v", envVarName, err)
 	}
+
+	//added to test
+	seelog.Debug("Environment variable %s has value %v", envVarName, boolDefaultFalseCofig)
 	return boolDefaultFalseCofig
 }
 
