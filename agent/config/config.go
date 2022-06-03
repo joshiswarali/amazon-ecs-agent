@@ -229,6 +229,12 @@ func NewConfig(ec2client ec2.EC2MetadataClient) (*Config, error) {
 	}
 	config := &envConfig
 
+	
+	//debug
+        seelog.Debug("printing")
+        seelog.Debug(config)
+
+
 	if config.External.Enabled() {
 		if config.AWSRegion == "" {
 			return nil, errors.New("AWS_DEFAULT_REGION has to be set when running on external capacity")
@@ -248,6 +254,11 @@ func NewConfig(ec2client ec2.EC2MetadataClient) (*Config, error) {
 	}
 	config.Merge(fcfg)
 
+	//debug
+	seelog.Debug("printing")
+	seelog.Debug(config)
+
+
 	config.Merge(userDataConfig(ec2client))
 
 	if config.AWSRegion == "" {
@@ -263,6 +274,13 @@ func NewConfig(ec2client ec2.EC2MetadataClient) (*Config, error) {
 			config.Merge(ec2MetadataConfig(ec2client))
 		}
 	}
+
+
+	//debug
+        seelog.Debug("printing")
+        seelog.Debug(config)
+
+
 
 	return config, config.mergeDefaultConfig(errs)
 }
