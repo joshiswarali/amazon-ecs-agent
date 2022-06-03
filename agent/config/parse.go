@@ -215,9 +215,13 @@ func parseBooleanDefaultFalseConfig(envVarName string) BooleanDefaultFalse {
 	boolDefaultFalseCofig := BooleanDefaultFalse{Value: NotSet}
 	configString := strings.TrimSpace(os.Getenv(envVarName))
 	if configString == "" {
+		
+//added to test
+	seelog.Debug("Environment variable %s has value %v", envVarName, boolDefaultFalseCofig)
 		// if intentionally not set, do not add warning log
 		return boolDefaultFalseCofig
 	}
+
 
 	res, err := strconv.ParseBool(configString)
 	if err == nil {
