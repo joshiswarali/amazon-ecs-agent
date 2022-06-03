@@ -67,6 +67,8 @@ func Run(arguments []string) int {
 
 	// Create an Agent object
 	agent, err := newAgent(aws.BoolValue(parsedArgs.BlackholeEC2Metadata), parsedArgs.AcceptInsecureCert)
+	log.Debug("printing the agent attributes")
+	log.Debug(agent.getConfig())
 	if err != nil {
 		// Failure to initialize either the docker client or the EC2 metadata
 		// service client are non terminal errors as they could be transient
