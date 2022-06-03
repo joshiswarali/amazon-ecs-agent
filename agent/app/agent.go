@@ -154,7 +154,7 @@ func newAgent(blackholeEC2Metadata bool, acceptInsecureCert *bool) (agent, error
 	if blackholeEC2Metadata {
 		ec2MetadataClient = ec2.NewBlackholeEC2MetadataClient()
 	}
-	logger.Info("Starting Swarali's Amazon ECS Agent", logger.Fields{
+	logger.Info("Starting Swarali's new Amazon ECS Agent", logger.Fields{
 		"version": version.Version,
 		"commit":  version.GitShortHash,
 	})

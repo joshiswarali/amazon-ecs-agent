@@ -358,4 +358,9 @@ type Config struct {
 	// WarmPoolsSupport specifies whether the agent should poll IMDS to check the target lifecycle state for a starting
 	// instance
 	WarmPoolsSupport BooleanDefaultFalse
+
+
+	// DisconnectFalse specifies whether the agent on a particular instance is allowed to be in disconnected mode
+	DisconnectAllowed BooleanDefaultFalse
+
 }
