@@ -23,6 +23,7 @@ import (
 
 	"github.com/aws/amazon-ecs-agent/agent/api"
 	apitaskstatus "github.com/aws/amazon-ecs-agent/agent/api/task/status"
+	"github.com/aws/amazon-ecs-agent/agent/config"
 	"github.com/aws/amazon-ecs-agent/agent/data"
 	"github.com/aws/amazon-ecs-agent/agent/ecs_client/model/ecs"
 	"github.com/aws/amazon-ecs-agent/agent/engine/dockerstate"
@@ -80,6 +81,7 @@ type TaskHandler struct {
 	state  dockerstate.TaskEngineState
 	client api.ECSClient
 	ctx    context.Context
+	cfg    config.Config
 }
 
 // taskSendableEvents is used to group all events for a task
@@ -103,7 +105,7 @@ type taskSendableEvents struct {
 func NewTaskHandler(ctx context.Context,
 	dataClient data.Client,
 	state dockerstate.TaskEngineState,
-	client api.ECSClient) *TaskHandler {
+	client api.ECSClient, cfg config.Config) *TaskHandler {
 	// Create a handler and start the periodic event drain loop
 	taskHandler := &TaskHandler{
 		ctx:                       ctx,
@@ -116,6 +118,7 @@ func NewTaskHandler(ctx context.Context,
 		client:                    client,
 		minDrainEventsFrequency:   minDrainEventsFrequency,
 		maxDrainEventsFrequency:   maxDrainEventsFrequency,
+		cfg:                       cfg,
 	}
 	go taskHandler.startDrainEventsTicker()
 
@@ -405,18 +408,18 @@ func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, bac
 
 	if event.containerShouldBeSent() {
 		if err := event.send(sendContainerStatusToECS, setContainerChangeSent, "container",
-			handler.client, eventToSubmit, handler.dataClient, backoff, taskEvents); err != nil {
+			handler.client, eventToSubmit, handler.dataClient, backoff, taskEvents, handler.cfg); err != nil {
 			return false, err
 		}
 	} else if event.taskShouldBeSent() {
 		if err := event.send(sendTaskStatusToECS, setTaskChangeSent, "task",
-			handler.client, eventToSubmit, handler.dataClient, backoff, taskEvents); err != nil {
+			handler.client, eventToSubmit, handler.dataClient, backoff, taskEvents, handler.cfg); err != nil {
 			handleInvalidParamException(err, taskEvents.events, eventToSubmit)
 			return false, err
 		}
 	} else if event.taskAttachmentShouldBeSent() {
 		if err := event.send(sendTaskStatusToECS, setTaskAttachmentSent, "task attachment",
-			handler.client, eventToSubmit, handler.dataClient, backoff, taskEvents); err != nil {
+			handler.client, eventToSubmit, handler.dataClient, backoff, taskEvents, handler.cfg); err != nil {
 			handleInvalidParamException(err, taskEvents.events, eventToSubmit)
 			return false, err
 		}

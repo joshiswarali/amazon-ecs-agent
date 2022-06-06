@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/aws/amazon-ecs-agent/agent/config"
 	"github.com/aws/amazon-ecs-agent/agent/logger"
 	"github.com/aws/amazon-ecs-agent/agent/logger/field"
 
@@ -150,7 +151,12 @@ func (event *sendableEvent) send(
 	eventToSubmit *list.Element,
 	dataClient data.Client,
 	backoff retry.Backoff,
-	taskEvents *taskSendableEvents) error {
+	taskEvents *taskSendableEvents,
+cfg config.Config) error {
+
+
+	logger.Debug("Check if config here")
+	logger.Debug(cfg.String())
 
 	logger.Info("Sending state change to ECS", logger.Fields{
 		"eventType": eventType,
