@@ -158,6 +158,11 @@ cfg config.Config) error {
 	logger.Debug("Check if config here")
 	logger.Debug(cfg.String())
 
+
+	if cfg.DisconnectAllowed.Enabled() {
+		logger.Debug("Disconnect capability enabled")
+	}
+
 	logger.Info("Sending state change to ECS", logger.Fields{
 		"eventType": eventType,
 		"eventData": event.toString(),
