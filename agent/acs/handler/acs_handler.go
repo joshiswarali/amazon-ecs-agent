@@ -234,6 +234,13 @@ func (acsSession *session) Start() error {
 				// reconnect
 				reconnectDelay := acsSession.computeReconnectDelay(isInactiveInstance)
 				seelog.Infof("Reconnecting to ACS in: %s", reconnectDelay.String())
+
+
+				if reconnectDelay.Minutes() >= 2 {
+					seelog.Debugf("Delay %s has exceeded 2 minutes, switching to disconnect mode", reconnectDelay.String())
+				}
+
+
 				waitComplete := acsSession.waitForDuration(reconnectDelay)
 				if waitComplete {
 					// If the context was not cancelled and we've waited for the
