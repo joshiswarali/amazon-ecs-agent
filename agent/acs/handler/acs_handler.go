@@ -196,6 +196,8 @@ func NewSession(
 // If the instance is deregistered, Start() would emit an event to the
 // deregister-instance event stream and sets the connection backoff time to 1 hour.
 func (acsSession *session) Start() error {
+
+	numberOfRetries := 0
 	// connectToACS channel is used to indicate the intent to connect to ACS
 	// It's processed by the select loop to connect to ACS
 	connectToACS := make(chan struct{}, 1)
@@ -206,7 +208,6 @@ func (acsSession *session) Start() error {
 		select {
 		case <-connectToACS:
 
-			timer := time.NewTimer(time.Minute * 5)
 			seelog.Debugf("Received connect to ACS message")
 			// Start a session with ACS
 			acsError := acsSession.startSessionOnce()
@@ -220,21 +221,14 @@ func (acsSession *session) Start() error {
 			// Session with ACS was stopped with some error, start processing the error
 			isInactiveInstance := isInactiveInstanceError(acsError)
 			if isInactiveInstance {
+			
 				// If the instance was deregistered, send an event to the event stream
 				// for the same
-
-                              <-timer.C:
-				if acsSession.taskHandler.GetConfig().DisconnectAllowed.Enabled() && acsSession.disconnectMode == "OFF" {
-					seelog.Debugf("5 minutes have elapsed, switching to disconnect mode")
-					//if disconnect capability provided, change the disconnectMode flag to ON
-					acsSession.disconnectMode = "ON"
-				}
-				if acsSession.disconnectMode == "OFF": {
+			
 				seelog.Debug("Container instance is deregistered, notifying listeners")
 				err := acsSession.deregisterInstanceEventStream.WriteToEventStream(struct{}{})
 				if err != nil {
 					seelog.Debugf("Failed to write to deregister container instance event stream, err: %v", err)
-				}
 				}
 			}
 			if shouldReconnectWithoutBackoff(acsError) {
@@ -251,15 +245,18 @@ func (acsSession *session) Start() error {
 				reconnectDelay := acsSession.computeReconnectDelay(isInactiveInstance)
 				seelog.Infof("Reconnecting to ACS in: %s", reconnectDelay.String())
 
-				if acsSession.taskHandler.GetConfig().DisconnectAllowed.Enabled() && acsSession.disconnectMode == "OFF" {
+				
+				
+				if acsSession.taskHandler.GetConfig().DisconnectAllowed.Enabled() && numberOfRetries == 5 && acsSession.disconnectMode == "OFF" {
 					seelog.Debugf("5 minutes have elapsed, switching to disconnect mode")
 					//if disconnect capability provided, change the disconnectMode flag to ON
 					acsSession.disconnectMode = "ON"
 				}
 
-				if acsSession.disconnectMode == "OFF": {
+				
+				if acsSession.disconnectMode == "OFF" {
 				seelog.Debugf("Attempting to connect to ACS")
-
+				numberOfRetries = numberOfRetries + 1
 				waitComplete := acsSession.waitForDuration(reconnectDelay)
 				if waitComplete {
 					// If the context was not cancelled and we've waited for the
@@ -274,6 +271,7 @@ func (acsSession *session) Start() error {
 					seelog.Info("Interrupted waiting for reconnect delay to elapse; Expect session to close")
 				}
 				}
+				
 			}
 		case <-acsSession.ctx.Done():
 			// agent is shutting down, exiting cleanly
