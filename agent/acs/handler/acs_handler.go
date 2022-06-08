@@ -215,6 +215,7 @@ func (acsSession *session) Start() error {
 				// agent is shutting down, exiting cleanly
 				return nil
 			default:
+				timer.Stop()
 			}
 			// Session with ACS was stopped with some error, start processing the error
 			isInactiveInstance := isInactiveInstanceError(acsError)
@@ -222,18 +223,18 @@ func (acsSession *session) Start() error {
 				// If the instance was deregistered, send an event to the event stream
 				// for the same
 
-
-                                <-timer.C
+                              <-timer.C:
 				if acsSession.taskHandler.GetConfig().DisconnectAllowed.Enabled() && acsSession.disconnectMode == "OFF" {
 					seelog.Debugf("5 minutes have elapsed, switching to disconnect mode")
 					//if disconnect capability provided, change the disconnectMode flag to ON
 					acsSession.disconnectMode = "ON"
 				}
-
+				if acsSession.disconnectMode == "OFF": {
 				seelog.Debug("Container instance is deregistered, notifying listeners")
 				err := acsSession.deregisterInstanceEventStream.WriteToEventStream(struct{}{})
 				if err != nil {
 					seelog.Debugf("Failed to write to deregister container instance event stream, err: %v", err)
+				}
 				}
 			}
 			if shouldReconnectWithoutBackoff(acsError) {
@@ -250,17 +251,14 @@ func (acsSession *session) Start() error {
 				reconnectDelay := acsSession.computeReconnectDelay(isInactiveInstance)
 				seelog.Infof("Reconnecting to ACS in: %s", reconnectDelay.String())
 
-
-				<-timer.C
 				if acsSession.taskHandler.GetConfig().DisconnectAllowed.Enabled() && acsSession.disconnectMode == "OFF" {
 					seelog.Debugf("5 minutes have elapsed, switching to disconnect mode")
 					//if disconnect capability provided, change the disconnectMode flag to ON
 					acsSession.disconnectMode = "ON"
 				}
 
-				if acsSession.disconnectMode == "OFF" {
-
-					seelog.Debugf("Attempting to connect to ACS")
+				if acsSession.disconnectMode == "OFF": {
+				seelog.Debugf("Attempting to connect to ACS")
 
 				waitComplete := acsSession.waitForDuration(reconnectDelay)
 				if waitComplete {
@@ -275,7 +273,7 @@ func (acsSession *session) Start() error {
 					// to indicate the same
 					seelog.Info("Interrupted waiting for reconnect delay to elapse; Expect session to close")
 				}
-			}
+				}
 			}
 		case <-acsSession.ctx.Done():
 			// agent is shutting down, exiting cleanly
