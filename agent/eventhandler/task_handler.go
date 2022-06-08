@@ -125,7 +125,7 @@ func NewTaskHandler(ctx context.Context,
 		minDrainEventsFrequency:   minDrainEventsFrequency,
 		maxDrainEventsFrequency:   maxDrainEventsFrequency,
 		cfg:                       cfg,
-		disconnectMode:            "OFF",
+		disconnectedMode:            "OFF",
 	}
 	go taskHandler.startDrainEventsTicker()
 
