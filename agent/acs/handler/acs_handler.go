@@ -101,6 +101,10 @@ type session struct {
 	_heartbeatTimeout               time.Duration
 	_heartbeatJitter                time.Duration
 	_inactiveInstanceReconnectDelay time.Duration
+
+        disconnectMode                  string
+}
+
 }
 
 // sessionResources defines the resource creator interface for starting
@@ -183,6 +187,7 @@ func NewSession(
 		_heartbeatTimeout:               heartbeatTimeout,
 		_heartbeatJitter:                heartbeatJitter,
 		_inactiveInstanceReconnectDelay: inactiveInstanceReconnectDelay,
+		disconnectMode:                  "OFF",
 	}
 }
 
@@ -203,6 +208,8 @@ func (acsSession *session) Start() error {
 	for {
 		select {
 		case <-connectToACS:
+
+			timer := time.NewTimer(time.Minute * 5)
 			seelog.Debugf("Received connect to ACS message")
 			// Start a session with ACS
 			acsError := acsSession.startSessionOnce()
@@ -217,6 +224,15 @@ func (acsSession *session) Start() error {
 			if isInactiveInstance {
 				// If the instance was deregistered, send an event to the event stream
 				// for the same
+
+
+                                <-timer.C
+				if acsSession.taskHandler.GetConfig().DisconnectAllowed.Enabled() && acsSession.disconnectMode == "OFF" {
+					seelog.Debugf("5 minutes have elapsed, switching to disconnect mode")
+					//if disconnect capability provided, change the disconnectMode flag to ON
+					acsSession.disconnectMode = "ON"
+				}
+
 				seelog.Debug("Container instance is deregistered, notifying listeners")
 				err := acsSession.deregisterInstanceEventStream.WriteToEventStream(struct{}{})
 				if err != nil {
@@ -236,10 +252,14 @@ func (acsSession *session) Start() error {
 				seelog.Infof("Reconnecting to ACS in: %s", reconnectDelay.String())
 
 
-				if reconnectDelay.Minutes() >= 2 {
-					seelog.Debugf("Delay %s has exceeded 2 minutes, switching to disconnect mode", reconnectDelay.String())
+				<-timer.C
+				if acsSession.taskHandler.GetConfig().DisconnectAllowed.Enabled() && acsSession.disconnectMode == "OFF" {
+					seelog.Debugf("5 minutes have elapsed, switching to disconnect mode")
+					//if disconnect capability provided, change the disconnectMode flag to ON
+					acsSession.disconnectMode = "ON"
 				}
 
+				if acsSession.disconnectMode == "OFF" {
 
 				waitComplete := acsSession.waitForDuration(reconnectDelay)
 				if waitComplete {
@@ -254,6 +274,7 @@ func (acsSession *session) Start() error {
 					// to indicate the same
 					seelog.Info("Interrupted waiting for reconnect delay to elapse; Expect session to close")
 				}
+			}
 			}
 		case <-acsSession.ctx.Done():
 			// agent is shutting down, exiting cleanly
