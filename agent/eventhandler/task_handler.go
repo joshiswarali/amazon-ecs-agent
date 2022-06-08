@@ -101,6 +101,11 @@ type taskSendableEvents struct {
 	taskARN string
 }
 
+
+func (handler *TaskHandler) GetConfig() config.Config {
+	return handler.cfg
+}
+
 // NewTaskHandler returns a pointer to TaskHandler
 func NewTaskHandler(ctx context.Context,
 	dataClient data.Client,
