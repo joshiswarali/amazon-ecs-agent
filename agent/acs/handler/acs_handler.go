@@ -216,7 +216,6 @@ func (acsSession *session) Start() error {
 				// agent is shutting down, exiting cleanly
 				return nil
 			default:
-				timer.Stop()
 			}
 			// Session with ACS was stopped with some error, start processing the error
 			isInactiveInstance := isInactiveInstanceError(acsError)
