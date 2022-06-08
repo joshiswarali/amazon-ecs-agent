@@ -245,6 +245,8 @@ func (acsSession *session) Start() error {
 			} else {
 				// Disconnected unexpectedly from ACS, compute backoff duration to
 				// reconnect
+
+				seelog.Debug(acsSession.disconnectMode)
 				reconnectDelay := acsSession.computeReconnectDelay(isInactiveInstance)
 				seelog.Infof("Reconnecting to ACS in: %s", reconnectDelay.String())
 
@@ -257,6 +259,8 @@ func (acsSession *session) Start() error {
 				}
 
 				if acsSession.disconnectMode == "OFF" {
+
+					seelog.Debugf("Attempting to connect to ACS")
 
 				waitComplete := acsSession.waitForDuration(reconnectDelay)
 				if waitComplete {
