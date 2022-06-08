@@ -101,10 +101,7 @@ type session struct {
 	_heartbeatTimeout               time.Duration
 	_heartbeatJitter                time.Duration
 	_inactiveInstanceReconnectDelay time.Duration
-
         disconnectMode                  string
-}
-
 }
 
 // sessionResources defines the resource creator interface for starting
