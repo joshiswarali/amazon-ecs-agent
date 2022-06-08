@@ -250,6 +250,8 @@ func (acsSession *session) Start() error {
 					seelog.Debugf("5 minutes have elapsed, switching to disconnect mode")
 					//if disconnect capability provided, change the disconnectMode flag to ON
 					acsSession.disconnectMode = "ON"
+					acsSession.taskHandler.ToggleDisconnectedMode()
+					acsSession.taskHandler.ToggleDisconnectedMode()
 				}
 
 				

@@ -82,6 +82,7 @@ type TaskHandler struct {
 	client api.ECSClient
 	ctx    context.Context
 	cfg    config.Config
+	disconnectedMode string
 }
 
 // taskSendableEvents is used to group all events for a task
@@ -124,11 +125,23 @@ func NewTaskHandler(ctx context.Context,
 		minDrainEventsFrequency:   minDrainEventsFrequency,
 		maxDrainEventsFrequency:   maxDrainEventsFrequency,
 		cfg:                       cfg,
+		disconnectMode:            "OFF",
 	}
 	go taskHandler.startDrainEventsTicker()
 
 	return taskHandler
 }
+
+func (handler *TaskHandler) ToggleDisconnectedMode() {
+
+	if handler.disconnectedMode == "OFF" {
+		handler.disconnectedMode = "ON"
+	} else {
+		handler.disconnectedMode = "OFF"
+	}
+}
+
+
 
 // AddStateChangeEvent queues up the state change event to be sent to ECS.
 // If the event is for a container state change, it just gets added to the
@@ -406,6 +419,9 @@ func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, bac
 		taskEvents.sending = false
 		return true, nil
 	}
+
+	seelog.Debug("disconnectedMode log")
+	seelog.Debug(handler.disconnectedMode)
 
 	eventToSubmit := taskEvents.events.Front()
 	// Extract the wrapped event from the list element
