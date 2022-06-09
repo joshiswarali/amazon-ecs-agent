@@ -135,8 +135,10 @@ func NewTaskHandler(ctx context.Context,
 func (handler *TaskHandler) ToggleDisconnectedMode() {
 
 	if handler.disconnectedMode == "OFF" {
+		seelog.Debug("turning on")
 		handler.disconnectedMode = "ON"
 	} else {
+		seelog.debug("turning off")
 		handler.disconnectedMode = "OFF"
 	}
 }
