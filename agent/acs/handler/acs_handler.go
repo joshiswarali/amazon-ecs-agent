@@ -195,7 +195,7 @@ func NewSession(
 // by the context.
 // If the instance is deregistered, Start() would emit an event to the
 // deregister-instance event stream and sets the connection backoff time to 1 hour.
-func (acsSession *session) Start() error {
+func (acsSession *session) Start() error  {
 
 	numberOfRetries := 0
 	// connectToACS channel is used to indicate the intent to connect to ACS
@@ -216,12 +216,6 @@ func (acsSession *session) Start() error {
 				// agent is shutting down, exiting cleanly
 				return nil
 			default:
-
-				if acsSession.disconnectMode == "ON" {
-					seelog.Debug("Resuming connection")
-					acsSession.disconnectMode = "OFF"
-					acsSession.taskHandler.ToggleDisconnectedMode()
-				}
 			}
 			// Session with ACS was stopped with some error, start processing the error
 			isInactiveInstance := isInactiveInstanceError(acsError)
@@ -390,6 +384,13 @@ func (acsSession *session) startACSSession(client wsclient.ClientServer) error {
 		seelog.Errorf("Error connecting to ACS: %v", err)
 		return err
 	}
+
+	if acsSession.disconnectMode == "ON" {
+        	seelog.Debug("Resumed connectivity")
+		acsSession.disconnectMode = "OFF"
+                acsSession.taskHandler.ToggleDisconnectedMode()
+        }
+
 
 	seelog.Info("Connected to ACS endpoint")
 	// Start inactivity timer for closing the connection

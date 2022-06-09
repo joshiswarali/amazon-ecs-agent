@@ -425,6 +425,8 @@ func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, bac
 	seelog.Debug("disconnectedMode log")
 	seelog.Debug(handler.disconnectedMode)
 
+	if handler.disconnectedMode == "OFF" {
+
 	eventToSubmit := taskEvents.events.Front()
 	// Extract the wrapped event from the list element
 	event := eventToSubmit.Value.(*sendableEvent)
@@ -456,6 +458,7 @@ func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, bac
 		seelog.Debug("TaskHandler: Removed the last element, no longer sending")
 		taskEvents.sending = false
 		return true, nil
+	}
 	}
 
 	return false, nil
