@@ -361,7 +361,7 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 			// Lock and unlock within this function, allowing the list to be added
 			// to while we're not actively sending an event
 
-		//	if handler.disconnectedMode == "OFF" {
+			if handler.disconnectedMode == "OFF" {
 			seelog.Debug("TaskHandler: Waiting on semaphore to send events...")
 			handler.submitSemaphore.Wait()
 			defer handler.submitSemaphore.Post()
@@ -370,9 +370,9 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 			done, err = taskEvents.submitFirstEvent(handler, backoff)
 			return err
 
-		//	} else {
-		//		return nil
-		//	}
+			} else {
+				return nil
+			}
 		})
 	}
 }
