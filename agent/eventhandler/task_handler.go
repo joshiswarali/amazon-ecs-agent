@@ -360,6 +360,8 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 		retry.RetryWithBackoff(backoff, func() error {
 			// Lock and unlock within this function, allowing the list to be added
 			// to while we're not actively sending an event
+
+		//	if handler.disconnectedMode == "OFF" {
 			seelog.Debug("TaskHandler: Waiting on semaphore to send events...")
 			handler.submitSemaphore.Wait()
 			defer handler.submitSemaphore.Post()
@@ -367,6 +369,10 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 			var err error
 			done, err = taskEvents.submitFirstEvent(handler, backoff)
 			return err
+
+		//	} else {
+		//		return nil
+		//	}
 		})
 	}
 }
@@ -429,7 +435,7 @@ func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, bac
 
 		seelog.Debug("Disconnected mode")
 		taskEvents.sending = false
-		return true, nil
+		return false, nil
 	}
 
 	eventToSubmit := taskEvents.events.Front()
