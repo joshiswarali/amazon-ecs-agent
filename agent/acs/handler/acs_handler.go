@@ -217,7 +217,7 @@ func (acsSession *session) Start() error {
 				return nil
 			default:
 
-				if acsSession.disconnectMode == "ON": {
+				if acsSession.disconnectMode == "ON" {
 					seelog.Debug("Resuming connection")
 					acsSession.disconnectMode = "OFF"
 					acsSession.taskHandler.ToggleDisconnectedMode()
