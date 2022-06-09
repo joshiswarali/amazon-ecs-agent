@@ -425,7 +425,12 @@ func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, bac
 	seelog.Debug("disconnectedMode log")
 	seelog.Debug(handler.disconnectedMode)
 
-	if handler.disconnectedMode == "OFF" {
+	if handler.disconnectedMode == "ON" {
+
+		seelog.Debug("Disconnected mode")
+		taskEvents.sending = false
+		return true, nil
+	}
 
 	eventToSubmit := taskEvents.events.Front()
 	// Extract the wrapped event from the list element
@@ -459,7 +464,7 @@ func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, bac
 		taskEvents.sending = false
 		return true, nil
 	}
-	}
+	
 
 	return false, nil
 }
