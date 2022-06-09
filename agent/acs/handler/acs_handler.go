@@ -216,6 +216,12 @@ func (acsSession *session) Start() error {
 				// agent is shutting down, exiting cleanly
 				return nil
 			default:
+
+				if acsSession.disconnectMode == "ON": {
+					seelog.Debug("Resuming connection")
+					acsSession.disconnectMode = "OFF"
+					acsSession.taskHandler.ToggleDisconnectedMode()
+				}
 			}
 			// Session with ACS was stopped with some error, start processing the error
 			isInactiveInstance := isInactiveInstanceError(acsError)
@@ -251,11 +257,11 @@ func (acsSession *session) Start() error {
 					//if disconnect capability provided, change the disconnectMode flag to ON
 					acsSession.disconnectMode = "ON"
 					acsSession.taskHandler.ToggleDisconnectedMode()
-					acsSession.taskHandler.ToggleDisconnectedMode()
+					//acsSession.taskHandler.ToggleDisconnectedMode()
 				}
 
 				
-				if acsSession.disconnectMode == "OFF" {
+				//if acsSession.disconnectMode == "OFF" {
 				seelog.Debugf("Attempting to connect to ACS")
 				numberOfRetries = numberOfRetries + 1
 				waitComplete := acsSession.waitForDuration(reconnectDelay)
@@ -271,7 +277,7 @@ func (acsSession *session) Start() error {
 					// to indicate the same
 					seelog.Info("Interrupted waiting for reconnect delay to elapse; Expect session to close")
 				}
-				}
+				//}
 				
 			}
 		case <-acsSession.ctx.Done():
