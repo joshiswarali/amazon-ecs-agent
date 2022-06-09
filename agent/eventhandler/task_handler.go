@@ -138,7 +138,7 @@ func (handler *TaskHandler) ToggleDisconnectedMode() {
 		seelog.Debug("turning on")
 		handler.disconnectedMode = "ON"
 	} else {
-		seelog.debug("turning off")
+		seelog.Debug("turning off")
 		handler.disconnectedMode = "OFF"
 	}
 }
