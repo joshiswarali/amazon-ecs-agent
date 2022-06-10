@@ -371,7 +371,7 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 			return err
 
 			} else {
-				seelog.Debug("check how many times this portion accessed")
+				//seelog.Debug("check how many times this portion accessed")
 				return nil
 			}
 		})
@@ -403,14 +403,9 @@ func (taskEvents *taskSendableEvents) sendChange(change *sendableEvent,
 		
 		// If a send event is not already in progress, trigger the
 		// submitTaskEvents to start sending changes to ECS
-
-		if (handler.disconnectedMode == "OFF") {
-		seelog.Debug("check if this matters: OFF")
 		taskEvents.sending = true
 		go handler.submitTaskEvents(taskEvents, client, change.taskArn()) 
-		} else {
-			seelog.Debug("check if this matters: ON")
-		}
+		
 	} else {
 		seelog.Debugf(
 			"TaskHandler: Not submitting change as the task is already being sent: %s",
