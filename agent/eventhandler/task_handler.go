@@ -371,6 +371,7 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 			return err
 
 			} else {
+				seelog.Debug("check how many times this portion accessed")
 				return nil
 			}
 		})
@@ -431,12 +432,12 @@ func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, bac
 	seelog.Debug("disconnectedMode log")
 	seelog.Debug(handler.disconnectedMode)
 
-	if handler.disconnectedMode == "ON" {
-
-		seelog.Debug("Disconnected mode")
-		taskEvents.sending = false
-		return false, nil
-	}
+	//if handler.disconnectedMode == "ON" {
+//
+//		seelog.Debug("Disconnected mode")
+//		taskEvents.sending = false
+//		return false, nil
+//	}
 
 	eventToSubmit := taskEvents.events.Front()
 	// Extract the wrapped event from the list element
