@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
+        "github.com/aws/amazon-ecs-agent/agent/config"
 	"github.com/aws/amazon-ecs-agent/agent/api"
 	apitaskstatus "github.com/aws/amazon-ecs-agent/agent/api/task/status"
 	"github.com/aws/amazon-ecs-agent/agent/data"
@@ -80,6 +80,9 @@ type TaskHandler struct {
 	state  dockerstate.TaskEngineState
 	client api.ECSClient
 	ctx    context.Context
+
+	cachedTaskArns map[string]void
+	cacheLock  sync.RWMutex
 }
 
 // taskSendableEvents is used to group all events for a task
@@ -116,6 +119,7 @@ func NewTaskHandler(ctx context.Context,
 		client:                    client,
 		minDrainEventsFrequency:   minDrainEventsFrequency,
 		maxDrainEventsFrequency:   maxDrainEventsFrequency,
+		cachedTaskArns:            make(map[string]void),
 	}
 	go taskHandler.startDrainEventsTicker()
 
@@ -320,8 +324,11 @@ func (handler *TaskHandler) getTaskEventsUnsafe(event *sendableEvent) *taskSenda
 // Continuously retries sending an event until it succeeds, sleeping between each
 // attempt
 func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, client api.ECSClient, taskARN string) {
+	
+	disconnected := config.GetDisconnectModeEnabled()
+
 	defer metrics.MetricsEngineGlobal.RecordECSClientMetric("SUBMIT_TASK_EVENTS")()
-	defer handler.removeTaskEvents(taskARN)
+	defer handler.removeTaskEvents(taskARN, disconnected)
 
 	backoff := retry.NewExponentialBackoff(submitStateBackoffMin, submitStateBackoffMax,
 		submitStateBackoffJitterMultiple, submitStateBackoffMultiple)
@@ -330,6 +337,7 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 	// to our goroutine
 	done := false
 	// TODO: wire in the context here. Else, we have go routine leaks in tests
+	if !disconnected {
 	for !done {
 		// If we looped back up here, we successfully submitted an event, but
 		// we haven't emptied the list so we should keep submitting
@@ -341,18 +349,44 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 			handler.submitSemaphore.Wait()
 			defer handler.submitSemaphore.Post()
 
-			var err error
-			done, err = taskEvents.submitFirstEvent(handler, backoff)
+			var err error			
+			done, err = taskEvents.submitFirstEvent(handler, backoff, taskARN)
 			return err
 		})
 	}
+	}
 }
 
-func (handler *TaskHandler) removeTaskEvents(taskARN string) {
+type void struct{}
+var member void
+
+func (handler *TaskHandler) removeTaskEvents(taskARN string, disconnected bool) {
 	handler.lock.Lock()
 	defer handler.lock.Unlock()
 
+	if !disconnected {
 	delete(handler.tasksToEvents, taskARN)
+	} else {
+		handler.cacheLock.Lock()
+		defer handler.cacheLock.Unlock()
+		handler.cachedTaskArns[taskARN] = member
+	}
+}
+
+func (handler *TaskHandler) ResumeEventsFlow () {
+
+	handler.cacheLock.RLock()
+	defer handler.cacheLock.RUnlock()
+
+	for arn := range handler.cachedTaskArns {
+		taskEvents := handler.tasksToEvents[arn]
+		taskEvents.lock.Lock()
+		defer taskEvents.lock.Unlock()
+		defer delete (handler.cachedTaskArns, arn)
+		seelog.Debugf("resuming events flow")
+		go handler.submitTaskEvents(taskEvents, handler.client, arn)
+	}
+
 }
 
 // sendChange adds the change to the sendable events queue. It triggers
@@ -386,12 +420,19 @@ func (taskEvents *taskSendableEvents) sendChange(change *sendableEvent,
 // false. An error is returned if there was an error with submitting the state change
 // to ECS. The error is used by the backoff handler to backoff before retrying the
 // state change submission for the first event
-func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, backoff retry.Backoff) (bool, error) {
+func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, backoff retry.Backoff, taskARN string) (bool, error) {
 	seelog.Debug("TaskHandler: Acquiring lock for sending event...")
 	taskEvents.lock.Lock()
 	defer taskEvents.lock.Unlock()
 
 	seelog.Debugf("TaskHandler: Acquired lock, processing event list: : %s", taskEvents.toStringUnsafe())
+
+	if config.GetDisconnectModeEnabled() {
+		handler.cacheLock.Lock()
+		defer handler.cacheLock.Unlock()
+		handler.cachedTaskArns[taskARN] = member
+		return true, nil
+	}
 
 	if taskEvents.events.Len() == 0 {
 		seelog.Debug("TaskHandler: No events left; not retrying more")

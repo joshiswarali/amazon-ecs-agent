@@ -372,6 +372,7 @@ func (acsSession *session) startACSSession(client wsclient.ClientServer) error {
 	if config.GetDisconnectModeEnabled() {
 		seelog.Infof("switching to normal mode")
 		config.SetDisconnectModeEnabled(false)
+		acsSession.taskHandler.ResumeEventsFlow()
 	}
 
 	seelog.Infof("disconnect mode is")
