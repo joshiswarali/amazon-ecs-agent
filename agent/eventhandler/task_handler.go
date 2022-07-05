@@ -341,7 +341,6 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 	// TODO: wire in the context here. Else, we have go routine leaks in tests
 	if !disconnected {
 		for !done {
-			logger.Debug("Agent is in disconnected mode, hence not submitting events")
 			// If we looped back up here, we successfully submitted an event, but
 			// we haven't emptied the list so we should keep submitting
 			backoff.Reset()
@@ -357,6 +356,8 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 				return err
 			})
 		}
+	} else {
+		logger.Debug("Agent is in disconnected mode, hence not submitting events")
 	}
 }
 
@@ -379,8 +380,8 @@ func (handler *TaskHandler) removeTaskEvents(taskARN string, disconnected bool) 
 
 func (handler *TaskHandler) ResumeEventsFlow() {
 
-	handler.cacheLock.RLock()
-	defer handler.cacheLock.RUnlock()
+	handler.cacheLock.Lock()
+	defer handler.cacheLock.Unlock()
 
 	for arn := range handler.cachedTaskArns {
 		taskEvents := handler.tasksToEvents[arn]
