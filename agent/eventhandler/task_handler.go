@@ -20,12 +20,14 @@ import (
 	"fmt"
 	"sync"
 	"time"
-        "github.com/aws/amazon-ecs-agent/agent/config"
+
 	"github.com/aws/amazon-ecs-agent/agent/api"
 	apitaskstatus "github.com/aws/amazon-ecs-agent/agent/api/task/status"
+	"github.com/aws/amazon-ecs-agent/agent/config"
 	"github.com/aws/amazon-ecs-agent/agent/data"
 	"github.com/aws/amazon-ecs-agent/agent/ecs_client/model/ecs"
 	"github.com/aws/amazon-ecs-agent/agent/engine/dockerstate"
+	"github.com/aws/amazon-ecs-agent/agent/logger"
 	"github.com/aws/amazon-ecs-agent/agent/metrics"
 	"github.com/aws/amazon-ecs-agent/agent/statechange"
 	"github.com/aws/amazon-ecs-agent/agent/utils"
@@ -82,7 +84,7 @@ type TaskHandler struct {
 	ctx    context.Context
 
 	cachedTaskArns map[string]void
-	cacheLock  sync.RWMutex
+	cacheLock      sync.RWMutex
 }
 
 // taskSendableEvents is used to group all events for a task
@@ -324,7 +326,7 @@ func (handler *TaskHandler) getTaskEventsUnsafe(event *sendableEvent) *taskSenda
 // Continuously retries sending an event until it succeeds, sleeping between each
 // attempt
 func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, client api.ECSClient, taskARN string) {
-	
+
 	disconnected := config.GetDisconnectModeEnabled()
 
 	defer metrics.MetricsEngineGlobal.RecordECSClientMetric("SUBMIT_TASK_EVENTS")()
@@ -338,26 +340,28 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 	done := false
 	// TODO: wire in the context here. Else, we have go routine leaks in tests
 	if !disconnected {
-	for !done {
-		// If we looped back up here, we successfully submitted an event, but
-		// we haven't emptied the list so we should keep submitting
-		backoff.Reset()
-		retry.RetryWithBackoff(backoff, func() error {
-			// Lock and unlock within this function, allowing the list to be added
-			// to while we're not actively sending an event
-			seelog.Debug("TaskHandler: Waiting on semaphore to send events...")
-			handler.submitSemaphore.Wait()
-			defer handler.submitSemaphore.Post()
+		for !done {
+			logger.Debug("Agent is in disconnected mode, hence not submitting events")
+			// If we looped back up here, we successfully submitted an event, but
+			// we haven't emptied the list so we should keep submitting
+			backoff.Reset()
+			retry.RetryWithBackoff(backoff, func() error {
+				// Lock and unlock within this function, allowing the list to be added
+				// to while we're not actively sending an event
+				seelog.Debug("TaskHandler: Waiting on semaphore to send events...")
+				handler.submitSemaphore.Wait()
+				defer handler.submitSemaphore.Post()
 
-			var err error			
-			done, err = taskEvents.submitFirstEvent(handler, backoff, taskARN)
-			return err
-		})
-	}
+				var err error
+				done, err = taskEvents.submitFirstEvent(handler, backoff, taskARN)
+				return err
+			})
+		}
 	}
 }
 
 type void struct{}
+
 var member void
 
 func (handler *TaskHandler) removeTaskEvents(taskARN string, disconnected bool) {
@@ -365,7 +369,7 @@ func (handler *TaskHandler) removeTaskEvents(taskARN string, disconnected bool) 
 	defer handler.lock.Unlock()
 
 	if !disconnected {
-	delete(handler.tasksToEvents, taskARN)
+		delete(handler.tasksToEvents, taskARN)
 	} else {
 		handler.cacheLock.Lock()
 		defer handler.cacheLock.Unlock()
@@ -373,7 +377,7 @@ func (handler *TaskHandler) removeTaskEvents(taskARN string, disconnected bool) 
 	}
 }
 
-func (handler *TaskHandler) ResumeEventsFlow () {
+func (handler *TaskHandler) ResumeEventsFlow() {
 
 	handler.cacheLock.RLock()
 	defer handler.cacheLock.RUnlock()
@@ -382,8 +386,8 @@ func (handler *TaskHandler) ResumeEventsFlow () {
 		taskEvents := handler.tasksToEvents[arn]
 		taskEvents.lock.Lock()
 		defer taskEvents.lock.Unlock()
-		defer delete (handler.cachedTaskArns, arn)
-		seelog.Debugf("resuming events flow")
+		defer delete(handler.cachedTaskArns, arn)
+		seelog.Debugf("Agent connected, resuming events flow for task with ARN", logger.Fields{arn: arn})
 		go handler.submitTaskEvents(taskEvents, handler.client, arn)
 	}
 
@@ -431,6 +435,7 @@ func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, bac
 		handler.cacheLock.Lock()
 		defer handler.cacheLock.Unlock()
 		handler.cachedTaskArns[taskARN] = member
+		logger.Debug("Agent is in disconnected mode, hence not submitting this event")
 		return true, nil
 	}
 
