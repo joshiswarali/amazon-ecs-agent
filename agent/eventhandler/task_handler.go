@@ -388,16 +388,24 @@ func (handler *TaskHandler) ResumeEventsFlow() {
 
 	for arn := range handler.cachedTaskArns {
 		taskEvents := handler.tasksToEvents[arn]
-		//seelog.Debugf("Acquiring lock on task events")
-		//taskEvents.lock.Lock()
+		seelog.Debugf("Acquiring lock on task events")
+		taskEvents.lock.Lock()
 		seelog.Debugf("Acquired lock on task events")
 		seelog.Debugf("Agent connected, resuming events flow for task with ARN", logger.Fields{arn: arn})
-		go handler.submitTaskEvents(taskEvents, handler.client, arn)
+		if !taskEvents.sending {
+			// If a send event is not already in progress, trigger the
+			// submitTaskEvents to start sending changes to ECS
+			taskEvents.sending = true
+			go handler.submitTaskEvents(taskEvents, handler.client, arn)
+		} else {
+			seelog.Debugf(
+				"TaskHandler resumed flow: Not submitting change as the task is already being sent")
+		}
 		seelog.Debugf("Deleting arn from cache")
 		delete(handler.cachedTaskArns, arn)
 		seelog.Debugf("Deleted arn from cache")
 		seelog.Debugf("Releasing lock on task events")
-		//taskEvents.lock.Unlock()
+		taskEvents.lock.Unlock()
 		seelog.Debugf("Released lock on task events")
 	}
 
@@ -455,6 +463,7 @@ func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, bac
 		logger.Debug("Releasing cache lock")
 		handler.cacheLock.Unlock()
 		logger.Debug("Released cache lock")
+		taskEvents.sending = false
 		return true, nil
 	}
 
