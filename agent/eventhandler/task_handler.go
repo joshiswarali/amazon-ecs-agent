@@ -388,8 +388,8 @@ func (handler *TaskHandler) ResumeEventsFlow() {
 
 	for arn := range handler.cachedTaskArns {
 		taskEvents := handler.tasksToEvents[arn]
-		seelog.Debugf("Acquiring lock on task events")
-		taskEvents.lock.Lock()
+		//seelog.Debugf("Acquiring lock on task events")
+		//taskEvents.lock.Lock()
 		seelog.Debugf("Acquired lock on task events")
 		seelog.Debugf("Agent connected, resuming events flow for task with ARN", logger.Fields{arn: arn})
 		go handler.submitTaskEvents(taskEvents, handler.client, arn)
@@ -397,7 +397,7 @@ func (handler *TaskHandler) ResumeEventsFlow() {
 		delete(handler.cachedTaskArns, arn)
 		seelog.Debugf("Deleted arn from cache")
 		seelog.Debugf("Releasing lock on task events")
-		taskEvents.lock.Unlock()
+		//taskEvents.lock.Unlock()
 		seelog.Debugf("Released lock on task events")
 	}
 
