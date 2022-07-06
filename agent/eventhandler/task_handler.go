@@ -380,17 +380,30 @@ func (handler *TaskHandler) removeTaskEvents(taskARN string, disconnected bool) 
 
 func (handler *TaskHandler) ResumeEventsFlow() {
 
+	logger.Debug("Acquiring cache lock")
 	handler.cacheLock.Lock()
-	defer handler.cacheLock.Unlock()
+	logger.Debug("Acquired cache lock")
+
+	seelog.Debugf("In resume events flow method")
 
 	for arn := range handler.cachedTaskArns {
 		taskEvents := handler.tasksToEvents[arn]
+		seelog.Debugf("Acquiring lock on task events")
 		taskEvents.lock.Lock()
-		defer taskEvents.lock.Unlock()
-		defer delete(handler.cachedTaskArns, arn)
+		seelog.Debugf("Acquired lock on task events")
 		seelog.Debugf("Agent connected, resuming events flow for task with ARN", logger.Fields{arn: arn})
 		go handler.submitTaskEvents(taskEvents, handler.client, arn)
+		seelog.Debugf("Deleting arn from cache")
+		delete(handler.cachedTaskArns, arn)
+		seelog.Debugf("Deleted arn from cache")
+		seelog.Debugf("Releasing lock on task events")
+		taskEvents.lock.Unlock()
+		seelog.Debugf("Released lock on task events")
 	}
+
+	logger.Debug("Releasing cache lock")
+	handler.cacheLock.Unlock()
+	logger.Debug("Released cache lock")
 
 }
 
@@ -433,10 +446,15 @@ func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, bac
 	seelog.Debugf("TaskHandler: Acquired lock, processing event list: : %s", taskEvents.toStringUnsafe())
 
 	if config.GetDisconnectModeEnabled() {
+		logger.Debug("Acquiring cache lock")
 		handler.cacheLock.Lock()
-		defer handler.cacheLock.Unlock()
+		logger.Debug("Acquired cache lock")
+		logger.Debug("Adding arn to cache")
 		handler.cachedTaskArns[taskARN] = member
 		logger.Debug("Agent is in disconnected mode, hence not submitting this event")
+		logger.Debug("Releasing cache lock")
+		handler.cacheLock.Unlock()
+		logger.Debug("Released cache lock")
 		return true, nil
 	}
 
