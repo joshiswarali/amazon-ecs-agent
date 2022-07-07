@@ -391,7 +391,13 @@ func (handler *TaskHandler) ResumeEventsFlow() {
 	seelog.Debugf("In resume events flow method")
 
 	for arn := range handler.cachedTaskArns {
+		logger.Debug("acquiring read lock on handler")
+		handler.lock.RLock()
+		logger.Debug("acquired read lock on handler")
 		taskEvents := handler.tasksToEvents[arn]
+		logger.Debug("releasing read lock on handler")
+		handler.lock.RUnlock()
+		logger.Debug("released read lock on handler")
 		seelog.Debugf("Acquiring lock on task events")
 		taskEvents.lock.Lock()
 		seelog.Debugf("Acquired lock on task events")
