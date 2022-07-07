@@ -371,13 +371,14 @@ func (handler *TaskHandler) removeTaskEvents(taskARN string, disconnected bool) 
 	defer handler.lock.Unlock()
 
 	if !disconnected {
+		logger.Debug("Removing arn from taskToEvents")
 		delete(handler.tasksToEvents, taskARN)
 	} else {
-		logger.Debug("Acquiring lock to remove arn from cache")
+		logger.Debug("Acquiring lock to add arn to cache")
 		handler.cacheLock.Lock()
 		handler.cachedTaskArns[taskARN] = member
 		handler.cacheLock.Unlock()
-		logger.Debug("Released lock to remove arn from cache")
+		logger.Debug("Released lock to add arn to cache")
 	}
 }
 
