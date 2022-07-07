@@ -366,15 +366,18 @@ type void struct{}
 var member void
 
 func (handler *TaskHandler) removeTaskEvents(taskARN string, disconnected bool) {
+
 	handler.lock.Lock()
 	defer handler.lock.Unlock()
 
 	if !disconnected {
 		delete(handler.tasksToEvents, taskARN)
 	} else {
+		logger.Debug("Acquiring lock to remove arn from cache")
 		handler.cacheLock.Lock()
-		defer handler.cacheLock.Unlock()
 		handler.cachedTaskArns[taskARN] = member
+		handler.cacheLock.Unlock()
+		logger.Debug("Released lock to remove arn from cache")
 	}
 }
 
@@ -392,15 +395,15 @@ func (handler *TaskHandler) ResumeEventsFlow() {
 		taskEvents.lock.Lock()
 		seelog.Debugf("Acquired lock on task events")
 		seelog.Debugf("Agent connected, resuming events flow for task with ARN", logger.Fields{arn: arn})
-		if !taskEvents.sending {
-			// If a send event is not already in progress, trigger the
-			// submitTaskEvents to start sending changes to ECS
-			taskEvents.sending = true
-			go handler.submitTaskEvents(taskEvents, handler.client, arn)
-		} else {
-			seelog.Debugf(
-				"TaskHandler resumed flow: Not submitting change as the task is already being sent")
-		}
+		// if !taskEvents.sending {
+		// 	// If a send event is not already in progress, trigger the
+		// 	// submitTaskEvents to start sending changes to ECS
+		// 	taskEvents.sending = true
+		go handler.submitTaskEvents(taskEvents, handler.client, arn)
+		// } else {
+		// 	seelog.Debugf(
+		// 		"TaskHandler resumed flow: Not submitting change as the task is already being sent")
+		// }
 		seelog.Debugf("Deleting arn from cache")
 		delete(handler.cachedTaskArns, arn)
 		seelog.Debugf("Deleted arn from cache")
@@ -463,7 +466,7 @@ func (taskEvents *taskSendableEvents) submitFirstEvent(handler *TaskHandler, bac
 		logger.Debug("Releasing cache lock")
 		handler.cacheLock.Unlock()
 		logger.Debug("Released cache lock")
-		taskEvents.sending = false
+		//taskEvents.sending = false
 		return true, nil
 	}
 
