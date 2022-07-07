@@ -19,10 +19,13 @@ package retry
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
 	apierrors "github.com/aws/amazon-ecs-agent/agent/api/errors"
+	"github.com/aws/amazon-ecs-agent/agent/config"
 	"github.com/aws/amazon-ecs-agent/agent/utils/ttime"
 	mock_ttime "github.com/aws/amazon-ecs-agent/agent/utils/ttime/mocks"
 	"github.com/golang/mock/gomock"
@@ -55,6 +58,107 @@ func TestRetryWithBackoff(t *testing.T) {
 			return apierrors.NewRetriableError(apierrors.NewRetriable(false), errors.New("can't retry"))
 		})
 	})
+}
+
+func TestRetryWithBackoffCtxForTaskHandler(t *testing.T) {
+
+	for _, tc := range []struct {
+		disconnectModeEnabled bool
+	}{
+		{
+			disconnectModeEnabled: true,
+		},
+		{
+			disconnectModeEnabled: false,
+		},
+	} {
+
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		mocktime := mock_ttime.NewMockTime(ctrl)
+		_time = mocktime
+		defer func() { _time = &ttime.DefaultTime{} }()
+
+		cfg := &config.Config{}
+		cfg.SetDisconnectModeEnabled(tc.disconnectModeEnabled)
+		flowController := NewEventFlowController()
+
+		t.Run(fmt.Sprintf("retries, disconnected %s", strconv.FormatBool(tc.disconnectModeEnabled)), func(t *testing.T) {
+			counter := 3
+			RetryWithBackoffCtxForTaskHandler(cfg, flowController, "myArn", context.TODO(), NewExponentialBackoff(100*time.Millisecond, 100*time.Millisecond, 0, 1), 200*time.Millisecond, func() error {
+				if counter == 0 {
+					return nil
+				}
+				counter--
+				return errors.New("err")
+			})
+			assert.Equal(t, 0, counter, "Counter didn't go to 0; didn't get retried enough")
+		})
+
+		t.Run(fmt.Sprintf("no retries, disconnected %s", strconv.FormatBool(tc.disconnectModeEnabled)), func(t *testing.T) {
+			counter := 3
+			RetryWithBackoffCtxForTaskHandler(cfg, flowController, "myArn", context.TODO(), NewExponentialBackoff(10*time.Second, 20*time.Second, 0, 2), 200*time.Millisecond, func() error {
+				if counter == 0 {
+					return nil
+				}
+				counter--
+				return apierrors.NewRetriableError(apierrors.NewRetriable(false), errors.New("can't retry"))
+			})
+
+			if tc.disconnectModeEnabled {
+				assert.Equal(t, 0, counter, "Counter not 0; went the wrong number of times")
+			} else {
+				assert.Equal(t, 2, counter, "Counter not 2; went the wrong number of times")
+			}
+		})
+
+		t.Run(fmt.Sprintf("cancel context, disconnected %s", strconv.FormatBool(tc.disconnectModeEnabled)), func(t *testing.T) {
+			counter := 2
+			ctx, cancel := context.WithCancel(context.TODO())
+			RetryWithBackoffCtxForTaskHandler(cfg, flowController, "myArn", ctx, NewExponentialBackoff(100*time.Millisecond, 100*time.Millisecond, 0, 1), 200*time.Millisecond, func() error {
+				counter--
+				if counter == 0 {
+					cancel()
+				}
+				return errors.New("err")
+			})
+			assert.Equal(t, 0, counter, "Counter not 0; went the wrong number of times")
+		})
+	}
+
+}
+
+func TestWaitForDurationAndInterruptIfRequired(t *testing.T) {
+
+	for _, tc := range []struct {
+		interruptTimer bool
+		delay          time.Duration
+	}{
+		{
+			interruptTimer: true,
+			delay:          10 * time.Minute,
+		},
+		{
+			interruptTimer: false,
+			delay:          100 * time.Millisecond,
+		},
+	} {
+
+		t.Run(fmt.Sprintf("interrupt timer %s", strconv.FormatBool(tc.interruptTimer)), func(t *testing.T) {
+			taskChannel := make(chan bool, 1)
+			if tc.interruptTimer {
+				interruptAfter := time.NewTimer(200 * time.Millisecond)
+				go func() {
+					<-interruptAfter.C
+					taskChannel <- true
+				}()
+			}
+			interrupt := WaitForDurationAndInterruptIfRequired(tc.delay, taskChannel)
+			assert.True(t, interrupt, "Timer not interrupted")
+		})
+
+	}
+
 }
 
 func TestRetryWithBackoffCtx(t *testing.T) {

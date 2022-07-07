@@ -23,6 +23,7 @@ import (
 
 	"github.com/aws/amazon-ecs-agent/agent/api"
 	apitaskstatus "github.com/aws/amazon-ecs-agent/agent/api/task/status"
+	"github.com/aws/amazon-ecs-agent/agent/config"
 	"github.com/aws/amazon-ecs-agent/agent/data"
 	"github.com/aws/amazon-ecs-agent/agent/ecs_client/model/ecs"
 	"github.com/aws/amazon-ecs-agent/agent/engine/dockerstate"
@@ -77,9 +78,12 @@ type TaskHandler struct {
 	minDrainEventsFrequency time.Duration
 	maxDrainEventsFrequency time.Duration
 
-	state  dockerstate.TaskEngineState
-	client api.ECSClient
-	ctx    context.Context
+	state               dockerstate.TaskEngineState
+	client              api.ECSClient
+	ctx                 context.Context
+	eventFlowController *retry.TaskEventsFlowController
+	cfg                 *config.Config
+	delay               time.Duration
 }
 
 // taskSendableEvents is used to group all events for a task
@@ -103,8 +107,11 @@ type taskSendableEvents struct {
 func NewTaskHandler(ctx context.Context,
 	dataClient data.Client,
 	state dockerstate.TaskEngineState,
-	client api.ECSClient) *TaskHandler {
+	client api.ECSClient,
+	cfg *config.Config,
+	delay time.Duration) *TaskHandler {
 	// Create a handler and start the periodic event drain loop
+
 	taskHandler := &TaskHandler{
 		ctx:                       ctx,
 		tasksToEvents:             make(map[string]*taskSendableEvents),
@@ -116,6 +123,9 @@ func NewTaskHandler(ctx context.Context,
 		client:                    client,
 		minDrainEventsFrequency:   minDrainEventsFrequency,
 		maxDrainEventsFrequency:   maxDrainEventsFrequency,
+		eventFlowController:       retry.NewEventFlowController(),
+		cfg:                       cfg,
+		delay:                     delay,
 	}
 	go taskHandler.startDrainEventsTicker()
 
@@ -334,7 +344,7 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 		// If we looped back up here, we successfully submitted an event, but
 		// we haven't emptied the list so we should keep submitting
 		backoff.Reset()
-		retry.RetryWithBackoff(backoff, func() error {
+		retry.RetryWithBackoffForTaskHandler(handler.cfg, handler.eventFlowController, taskARN, handler.delay, backoff, func() error {
 			// Lock and unlock within this function, allowing the list to be added
 			// to while we're not actively sending an event
 			seelog.Debug("TaskHandler: Waiting on semaphore to send events...")
@@ -448,4 +458,8 @@ func handleInvalidParamException(err error, events *list.List, eventToSubmit *li
 		seelog.Warnf("TaskHandler: Event is sent with invalid parameters; just removing: %s", event.toString())
 		events.Remove(eventToSubmit)
 	}
+}
+
+func (handler *TaskHandler) ResumeEventsFlow() {
+	retry.DoResumeEventsFlow(handler.eventFlowController)
 }
