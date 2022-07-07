@@ -330,7 +330,7 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 	disconnected := config.GetDisconnectModeEnabled()
 
 	defer metrics.MetricsEngineGlobal.RecordECSClientMetric("SUBMIT_TASK_EVENTS")()
-	defer handler.removeTaskEvents(taskARN, disconnected)
+	//defer handler.removeTaskEvents(taskARN, disconnected)
 
 	backoff := retry.NewExponentialBackoff(submitStateBackoffMin, submitStateBackoffMax,
 		submitStateBackoffJitterMultiple, submitStateBackoffMultiple)
@@ -339,7 +339,18 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 	// to our goroutine
 	done := false
 	// TODO: wire in the context here. Else, we have go routine leaks in tests
-	if !disconnected {
+	if disconnected {
+
+		//on resuming connection, if this block loses the race for cacheLock,
+		// i.e. ResumeEventsFlow() acquires lock and empties the entire cache
+		//then no way of emptying the cache
+		logger.Debug("Agent is in disconnected mode, hence not submitting events")
+		logger.Debug("Acquiring lock to add arn to cache")
+		handler.cacheLock.Lock()
+		handler.cachedTaskArns[taskARN] = member
+		handler.cacheLock.Unlock()
+		logger.Debug("Released lock to add arn to cache")
+	} else {
 		for !done {
 			// If we looped back up here, we successfully submitted an event, but
 			// we haven't emptied the list so we should keep submitting
@@ -356,8 +367,11 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 				return err
 			})
 		}
-	} else {
-		logger.Debug("Agent is in disconnected mode, hence not submitting events")
+
+		if !config.GetDisconnectModeEnabled() {
+			handler.removeTaskEvents(taskARN)
+		}
+
 	}
 }
 
@@ -365,21 +379,22 @@ type void struct{}
 
 var member void
 
-func (handler *TaskHandler) removeTaskEvents(taskARN string, disconnected bool) {
+func (handler *TaskHandler) removeTaskEvents(taskARN string) {
 
 	handler.lock.Lock()
 	defer handler.lock.Unlock()
 
-	if !disconnected {
-		logger.Debug("Removing arn from taskToEvents")
-		delete(handler.tasksToEvents, taskARN)
-	} else {
-		logger.Debug("Acquiring lock to add arn to cache")
-		handler.cacheLock.Lock()
-		handler.cachedTaskArns[taskARN] = member
-		handler.cacheLock.Unlock()
-		logger.Debug("Released lock to add arn to cache")
-	}
+	logger.Debug("Removing arn from taskToEvents")
+	delete(handler.tasksToEvents, taskARN)
+
+	// else {
+	// 	logger.Debug("Acquiring lock to add arn to cache")
+	// 	handler.cacheLock.Lock()
+	// 	handler.cachedTaskArns[taskARN] = member
+	// 	handler.cacheLock.Unlock()
+	// 	logger.Debug("Released lock to add arn to cache")
+	// }
+
 }
 
 func (handler *TaskHandler) ResumeEventsFlow() {
