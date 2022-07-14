@@ -87,14 +87,17 @@ func RetryWithBackoffCtxForTaskHandler(cfg *config.Config, eventFlowController *
 
 		err = fn()
 
-		retriableErr, isRetriableErr := err.(apierrors.Retriable)
+		//retriableErr, isRetriableErr := err.(apierrors.Retriable)
 
 		//if unretriable error in disconnected mode, don't retutn
-		if err == nil || (!cfg.GetDisconnectModeEnabled() && isRetriableErr && !retriableErr.Retry()) {
+		//if err == nil || (!cfg.GetDisconnectModeEnabled() && isRetriableErr && !retriableErr.Retry()) {
+		if 1 == 1 {
+			logger.Debug("Returning from RetryWithBackOff")
 			return err
 		}
+		//}
 
-		taskChannel := eventFlowController.createChannelForTask(cfg, taskARN)
+		//taskChannel := eventFlowController.createChannelForTask(cfg, taskARN)
 
 		/*
 			If we switch to disconnected mode after executing the previous code block,
@@ -105,18 +108,18 @@ func RetryWithBackoffCtxForTaskHandler(cfg *config.Config, eventFlowController *
 			we call waitForDuration and not waitForDurationAndInterruptIfRequired.
 			Hence, message is sent on channel but it is never read.
 		*/
-		if cfg.GetDisconnectModeEnabled() && taskChannel != nil {
-			WaitForDurationAndInterruptIfRequired(delay, taskChannel)
-		} else {
-			waitForDuration(backoff.Duration())
-		}
+		// if cfg.GetDisconnectModeEnabled() && taskChannel != nil {
+		// 	WaitForDurationAndInterruptIfRequired(delay, taskChannel)
+		// } else {
+		// 	waitForDuration(backoff.Duration())
+		// }
 
 		/*
 			Note: If we were in disconnected mode up to this point and switch to normal mode here,
 			message is sent on channel but it is never read.
 			Hence, channel may have messages in it when it is closed and deleted from map
 		*/
-		eventFlowController.deleteChannelForTask(taskARN)
+		//eventFlowController.deleteChannelForTask(taskARN)
 
 	}
 }
