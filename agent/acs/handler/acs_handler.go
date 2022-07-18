@@ -240,6 +240,7 @@ func (acsSession *session) Start() error {
 				if !cfg.GetDisconnectModeEnabled() {
 					seelog.Infof("switching to disconnected mode")
 					cfg.SetDisconnectModeEnabled(true)
+					acsSession.taskHandler.PauseEventsFlow()
 				}
 				seelog.Infof("disconnect mode is")
 				seelog.Infof(strconv.FormatBool(cfg.GetDisconnectModeEnabled()))
