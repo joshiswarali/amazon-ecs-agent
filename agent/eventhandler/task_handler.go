@@ -84,6 +84,9 @@ type TaskHandler struct {
 	eventFlowController *retry.TaskEventsFlowController
 	cfg                 *config.Config
 	delay               time.Duration
+	eventFlowCtx        context.Context
+	eventFlowCtxCancel  context.CancelFunc
+	eventFlowCtxLock    sync.Mutex
 }
 
 // taskSendableEvents is used to group all events for a task
@@ -126,6 +129,8 @@ func NewTaskHandler(ctx context.Context,
 		eventFlowController:       retry.NewEventFlowController(),
 		cfg:                       cfg,
 		delay:                     delay,
+		eventFlowCtx:              nil,
+		eventFlowCtxCancel:        nil,
 	}
 	go taskHandler.startDrainEventsTicker()
 
@@ -344,7 +349,7 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 		// If we looped back up here, we successfully submitted an event, but
 		// we haven't emptied the list so we should keep submitting
 		backoff.Reset()
-		retry.RetryWithBackoffForTaskHandler(handler.cfg, handler.eventFlowController, taskARN, handler.delay, backoff, func() error {
+		retry.RetryWithBackoffForTaskHandler(handler.cfg, handler.eventFlowController, taskARN, handler.delay, backoff, handler.eventFlowCtx, func() error {
 			// Lock and unlock within this function, allowing the list to be added
 			// to while we're not actively sending an event
 			seelog.Debug("TaskHandler: Waiting on semaphore to send events...")
@@ -460,6 +465,22 @@ func handleInvalidParamException(err error, events *list.List, eventToSubmit *li
 	}
 }
 
+//will be called by acs handler while toggling disconnectModeEnabled true to false
 func (handler *TaskHandler) ResumeEventsFlow() {
-	retry.DoResumeEventsFlow(handler.eventFlowController)
+	handler.eventFlowCtxLock.Lock()
+	defer handler.eventFlowCtxLock.Unlock()
+
+	if handler.eventFlowCtxCancel != nil {
+		handler.eventFlowCtxCancel()
+		handler.eventFlowCtx = nil
+		handler.eventFlowCtxCancel = nil
+	}
+}
+
+//will be called by acs handler while toggling disconnectModeEnabled false to true
+func (handler *TaskHandler) PauseEventsFlow() {
+	handler.eventFlowCtxLock.Lock()
+	defer handler.eventFlowCtxLock.Unlock()
+
+	handler.eventFlowCtx, handler.eventFlowCtxCancel = context.WithCancel(handler.ctx)
 }
