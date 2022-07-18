@@ -15,7 +15,6 @@ package retry
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	apierrors "github.com/aws/amazon-ecs-agent/agent/api/errors"
@@ -26,17 +25,6 @@ import (
 
 var _time ttime.Time = &ttime.DefaultTime{}
 
-type TaskEventsFlowController struct {
-	flowControl      map[string]chan bool
-	eventControlLock sync.Mutex
-}
-
-func NewEventFlowController() *TaskEventsFlowController {
-	return &TaskEventsFlowController{
-		flowControl: make(map[string]chan bool),
-	}
-}
-
 // RetryWithBackoff takes a Backoff and a function to call that returns an error
 // If the error is nil then the function will no longer be called
 // If the error is Retriable then that will be used to determine if it should be
@@ -45,8 +33,8 @@ func RetryWithBackoff(backoff Backoff, fn func() error) error {
 	return RetryWithBackoffCtx(context.Background(), backoff, fn)
 }
 
-func RetryWithBackoffForTaskHandler(cfg *config.Config, eventFlowController *TaskEventsFlowController, taskARN string, delay time.Duration, backoff Backoff, eventFlowCtx context.Context, fn func() error) error {
-	return RetryWithBackoffCtxForTaskHandler(cfg, eventFlowController, taskARN, context.Background(), backoff, delay, eventFlowCtx, fn)
+func RetryWithBackoffForTaskHandler(cfg *config.Config, taskARN string, delay time.Duration, backoff Backoff, eventFlowCtx context.Context, fn func() error) error {
+	return RetryWithBackoffCtxForTaskHandler(cfg, taskARN, context.Background(), backoff, delay, eventFlowCtx, fn)
 }
 
 // RetryWithBackoffCtx takes a context, a Backoff, and a function to call that returns an error
@@ -75,7 +63,7 @@ func RetryWithBackoffCtx(ctx context.Context, backoff Backoff, fn func() error) 
 	}
 }
 
-func RetryWithBackoffCtxForTaskHandler(cfg *config.Config, eventFlowController *TaskEventsFlowController, taskARN string, ctx context.Context, backoff Backoff, delay time.Duration, eventFlowCtx context.Context, fn func() error) error {
+func RetryWithBackoffCtxForTaskHandler(cfg *config.Config, taskARN string, ctx context.Context, backoff Backoff, delay time.Duration, eventFlowCtx context.Context, fn func() error) error {
 
 	var err error
 	for {
@@ -96,73 +84,28 @@ func RetryWithBackoffCtxForTaskHandler(cfg *config.Config, eventFlowController *
 
 		/*
 			If we switch to disconnected mode after executing the previous code block,
-			eventFlowCtx is initialized, it will be used
+			we enter the if block
 
 			If we were in disconnected mode up to this point and switch to normal mode here,
-			eventFlowCtx becomes nil, and we enter else block
+			eventFlowCtx is closed, and we enter else block
 		*/
 		if cfg.GetDisconnectModeEnabled() && eventFlowCtx != nil {
 			//what if we reconnect over here??- before calling WaitForDurationAndInterruptIfRequired
-			//there is a chance that we wait on a closed/nil channel
+			//there is a chance that we wait on a closed channel- but that will return immediately
 			WaitForDurationAndInterruptIfRequired(delay, eventFlowCtx)
 		} else {
+			//what if we disconnect here??- no effect, just that context is initalized
 			waitForDuration(backoff.Duration())
 		}
 
 		/*
 			Note: If we were in disconnected mode up to this point and switch to normal mode here,
-			context is cancelled and becomes nil, but this has no effect
+			context is cancelled, but this has no effect
+
+			If we reconnect at this point, context is initialized, no effect
 		*/
 
 	}
-}
-
-func (eventFlowController *TaskEventsFlowController) deleteChannelForTask(taskARN string) {
-
-	eventFlowController.eventControlLock.Lock()
-	if _, ok := eventFlowController.flowControl[taskARN]; ok {
-
-		logger.Debug("Closing and deleting channel for task", logger.Fields{
-			"taskARN": taskARN,
-		})
-		close(eventFlowController.flowControl[taskARN])
-		delete(eventFlowController.flowControl, taskARN)
-	}
-	eventFlowController.eventControlLock.Unlock()
-}
-
-func (eventFlowController *TaskEventsFlowController) createChannelForTask(cfg *config.Config, taskARN string) chan bool {
-
-	var taskChannel chan bool
-	eventFlowController.eventControlLock.Lock()
-	if _, ok := eventFlowController.flowControl[taskARN]; !ok {
-		//Checking disconnectModeEnabled here ensures that we create channel only in disconnected mode
-		if cfg.GetDisconnectModeEnabled() {
-			logger.Debug("Creating channel for task", logger.Fields{
-				"taskARN": taskARN,
-			})
-			taskChannel = make(chan bool, 1)
-			eventFlowController.flowControl[taskARN] = taskChannel
-		}
-	}
-	eventFlowController.eventControlLock.Unlock()
-	return taskChannel
-}
-
-func DoResumeEventsFlow(eventFlowController *TaskEventsFlowController) {
-	eventFlowController.eventControlLock.Lock()
-	for arn := range eventFlowController.flowControl {
-		logger.Debug("Resuming task events flow for a task", logger.Fields{
-			"taskARN": arn,
-		})
-		if len(eventFlowController.flowControl[arn]) == 0 {
-			taskChannel := eventFlowController.flowControl[arn]
-			if taskChannel != nil {
-				eventFlowController.flowControl[arn] <- true
-			}
-		}
-	}
-	eventFlowController.eventControlLock.Unlock()
 }
 
 func waitForDuration(delay time.Duration) bool {
