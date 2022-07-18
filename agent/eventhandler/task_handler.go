@@ -27,6 +27,7 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/data"
 	"github.com/aws/amazon-ecs-agent/agent/ecs_client/model/ecs"
 	"github.com/aws/amazon-ecs-agent/agent/engine/dockerstate"
+	"github.com/aws/amazon-ecs-agent/agent/logger"
 	"github.com/aws/amazon-ecs-agent/agent/metrics"
 	"github.com/aws/amazon-ecs-agent/agent/statechange"
 	"github.com/aws/amazon-ecs-agent/agent/utils"
@@ -465,6 +466,8 @@ func handleInvalidParamException(err error, events *list.List, eventToSubmit *li
 
 //will be called by acs handler while toggling disconnectModeEnabled true to false
 func (handler *TaskHandler) ResumeEventsFlow() {
+
+	logger.Debug("Resuming events flow")
 	handler.eventFlowCtxLock.Lock()
 	defer handler.eventFlowCtxLock.Unlock()
 
@@ -475,6 +478,8 @@ func (handler *TaskHandler) ResumeEventsFlow() {
 
 //will be called by acs handler while toggling disconnectModeEnabled false to true
 func (handler *TaskHandler) PauseEventsFlow() {
+
+	logger.Debug("Pausing events flow")
 	handler.eventFlowCtxLock.Lock()
 	defer handler.eventFlowCtxLock.Unlock()
 
