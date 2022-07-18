@@ -45,8 +45,8 @@ func RetryWithBackoff(backoff Backoff, fn func() error) error {
 	return RetryWithBackoffCtx(context.Background(), backoff, fn)
 }
 
-func RetryWithBackoffForTaskHandler(cfg *config.Config, eventFlowController *TaskEventsFlowController, taskARN string, delay time.Duration, backoff Backoff, fn func() error) error {
-	return RetryWithBackoffCtxForTaskHandler(cfg, eventFlowController, taskARN, context.Background(), backoff, delay, fn)
+func RetryWithBackoffForTaskHandler(cfg *config.Config, eventFlowController *TaskEventsFlowController, taskARN string, delay time.Duration, backoff Backoff, eventFlowCtx context.Context, fn func() error) error {
+	return RetryWithBackoffCtxForTaskHandler(cfg, eventFlowController, taskARN, context.Background(), backoff, delay, eventFlowCtx, fn)
 }
 
 // RetryWithBackoffCtx takes a context, a Backoff, and a function to call that returns an error
@@ -75,7 +75,7 @@ func RetryWithBackoffCtx(ctx context.Context, backoff Backoff, fn func() error) 
 	}
 }
 
-func RetryWithBackoffCtxForTaskHandler(cfg *config.Config, eventFlowController *TaskEventsFlowController, taskARN string, ctx context.Context, backoff Backoff, delay time.Duration, fn func() error) error {
+func RetryWithBackoffCtxForTaskHandler(cfg *config.Config, eventFlowController *TaskEventsFlowController, taskARN string, ctx context.Context, backoff Backoff, delay time.Duration, eventFlowCtx context.Context, fn func() error) error {
 
 	var err error
 	for {
@@ -94,29 +94,25 @@ func RetryWithBackoffCtxForTaskHandler(cfg *config.Config, eventFlowController *
 			return err
 		}
 
-		taskChannel := eventFlowController.createChannelForTask(cfg, taskARN)
-
 		/*
 			If we switch to disconnected mode after executing the previous code block,
-			that means there is no channel initialized for the current ARN.
-			Hence we don't use this nil channel
+			eventFlowCtx is initialized, it will be used
 
 			If we were in disconnected mode up to this point and switch to normal mode here,
-			we call waitForDuration and not waitForDurationAndInterruptIfRequired.
-			Hence, message is sent on channel but it is never read.
+			eventFlowCtx becomes nil, and we enter else block
 		*/
-		if cfg.GetDisconnectModeEnabled() && taskChannel != nil {
-			WaitForDurationAndInterruptIfRequired(delay, taskChannel)
+		if cfg.GetDisconnectModeEnabled() && eventFlowCtx != nil {
+			//what if we reconnect over here??- before calling WaitForDurationAndInterruptIfRequired
+			//there is a chance that we wait on a closed/nil channel
+			WaitForDurationAndInterruptIfRequired(delay, eventFlowCtx)
 		} else {
 			waitForDuration(backoff.Duration())
 		}
 
 		/*
 			Note: If we were in disconnected mode up to this point and switch to normal mode here,
-			message is sent on channel but it is never read.
-			Hence, channel may have messages in it when it is closed and deleted from map
+			context is cancelled and becomes nil, but this has no effect
 		*/
-		eventFlowController.deleteChannelForTask(taskARN)
 
 	}
 }
@@ -185,7 +181,7 @@ func waitForDuration(delay time.Duration) bool {
 	}
 }
 
-func WaitForDurationAndInterruptIfRequired(delay time.Duration, resumeEventsFlow <-chan bool) bool {
+func WaitForDurationAndInterruptIfRequired(delay time.Duration, eventFlowCtx context.Context) bool {
 	reconnectTimer := time.NewTimer(delay)
 	logger.Debug("Started wait", logger.Fields{
 		"waitDelay": delay.String(),
@@ -196,7 +192,7 @@ func WaitForDurationAndInterruptIfRequired(delay time.Duration, resumeEventsFlow
 			"waitDelay": delay.String(),
 		})
 		return true
-	case <-resumeEventsFlow:
+	case <-eventFlowCtx.Done():
 		logger.Debug("Interrupt wait as connection resumed")
 		if !reconnectTimer.Stop() { //prevents memory leak
 			<-reconnectTimer.C
