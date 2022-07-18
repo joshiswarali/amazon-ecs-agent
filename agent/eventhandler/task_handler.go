@@ -78,15 +78,14 @@ type TaskHandler struct {
 	minDrainEventsFrequency time.Duration
 	maxDrainEventsFrequency time.Duration
 
-	state               dockerstate.TaskEngineState
-	client              api.ECSClient
-	ctx                 context.Context
-	eventFlowController *retry.TaskEventsFlowController
-	cfg                 *config.Config
-	delay               time.Duration
-	eventFlowCtx        context.Context
-	eventFlowCtxCancel  context.CancelFunc
-	eventFlowCtxLock    sync.Mutex
+	state              dockerstate.TaskEngineState
+	client             api.ECSClient
+	ctx                context.Context
+	cfg                *config.Config
+	delay              time.Duration
+	eventFlowCtx       context.Context
+	eventFlowCtxCancel context.CancelFunc
+	eventFlowCtxLock   sync.Mutex
 }
 
 // taskSendableEvents is used to group all events for a task
@@ -126,7 +125,6 @@ func NewTaskHandler(ctx context.Context,
 		client:                    client,
 		minDrainEventsFrequency:   minDrainEventsFrequency,
 		maxDrainEventsFrequency:   maxDrainEventsFrequency,
-		eventFlowController:       retry.NewEventFlowController(),
 		cfg:                       cfg,
 		delay:                     delay,
 		eventFlowCtx:              nil,
@@ -349,7 +347,7 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 		// If we looped back up here, we successfully submitted an event, but
 		// we haven't emptied the list so we should keep submitting
 		backoff.Reset()
-		retry.RetryWithBackoffForTaskHandler(handler.cfg, handler.eventFlowController, taskARN, handler.delay, backoff, handler.eventFlowCtx, func() error {
+		retry.RetryWithBackoffForTaskHandler(handler.cfg, taskARN, handler.delay, backoff, handler.eventFlowCtx, func() error {
 			// Lock and unlock within this function, allowing the list to be added
 			// to while we're not actively sending an event
 			seelog.Debug("TaskHandler: Waiting on semaphore to send events...")
@@ -472,8 +470,6 @@ func (handler *TaskHandler) ResumeEventsFlow() {
 
 	if handler.eventFlowCtxCancel != nil {
 		handler.eventFlowCtxCancel()
-		handler.eventFlowCtx = nil
-		handler.eventFlowCtxCancel = nil
 	}
 }
 
