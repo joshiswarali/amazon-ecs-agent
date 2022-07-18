@@ -474,9 +474,6 @@ func (handler *TaskHandler) ResumeEventsFlow() {
 	if handler.eventFlowCtxCancel != nil {
 		handler.eventFlowCtxCancel()
 	}
-	//enabling context to be garbage collected
-	handler.eventFlowCtx = nil
-	handler.eventFlowCtxCancel = nil
 }
 
 //will be called by acs handler while toggling disconnectModeEnabled false to true
