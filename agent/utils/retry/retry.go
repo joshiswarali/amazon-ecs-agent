@@ -92,7 +92,7 @@ func RetryWithBackoffCtxForTaskHandler(cfg *config.Config, taskARN string, ctx c
 		if cfg.GetDisconnectModeEnabled() && eventFlowCtx != nil {
 			//what if we reconnect over here??- before calling WaitForDurationAndInterruptIfRequired
 			//there is a chance that we wait on a closed channel- but that will return immediately
-			WaitForDurationAndInterruptIfRequired(delay, eventFlowCtx)
+			WaitForDurationAndInterruptIfRequired(ctx, eventFlowCtx, delay)
 		} else {
 			//what if we disconnect here??- no effect, just that context is initalized
 			waitForDuration(backoff.Duration())
@@ -110,21 +110,15 @@ func RetryWithBackoffCtxForTaskHandler(cfg *config.Config, taskARN string, ctx c
 
 func waitForDuration(delay time.Duration) bool {
 	reconnectTimer := time.NewTimer(delay)
-	logger.Debug("Started wait", logger.Fields{
-		"waitDelay": delay.String(),
-	})
 	select {
 	case <-reconnectTimer.C:
-		logger.Debug("Finished wait", logger.Fields{
-			"waitDelay": delay.String(),
-		})
 		return true
 	default:
 		return false
 	}
 }
 
-func WaitForDurationAndInterruptIfRequired(delay time.Duration, eventFlowCtx context.Context) bool {
+func WaitForDurationAndInterruptIfRequired(ctx context.Context, eventFlowCtx context.Context, delay time.Duration) bool {
 	reconnectTimer := time.NewTimer(delay)
 	logger.Debug("Started wait", logger.Fields{
 		"waitDelay": delay.String(),
@@ -135,6 +129,8 @@ func WaitForDurationAndInterruptIfRequired(delay time.Duration, eventFlowCtx con
 			"waitDelay": delay.String(),
 		})
 		return true
+
+	case <-ctx.Done():
 	case <-eventFlowCtx.Done():
 		logger.Debug("Interrupt wait as connection resumed")
 		if !reconnectTimer.Stop() { //prevents memory leak
