@@ -95,7 +95,7 @@ func RetryWithBackoffCtxForTaskHandler(cfg *config.Config, taskARN string, ctx c
 			WaitForDurationAndInterruptIfRequired(ctx, eventFlowCtx, delay)
 		} else {
 			//what if we disconnect here??- no effect, just that context is initalized
-			waitForDuration(backoff.Duration())
+			waitForDuration(ctx, backoff.Duration())
 		}
 
 		/*
@@ -108,11 +108,19 @@ func RetryWithBackoffCtxForTaskHandler(cfg *config.Config, taskARN string, ctx c
 	}
 }
 
-func waitForDuration(delay time.Duration) bool {
+func waitForDuration(ctx context.Context, delay time.Duration) bool {
 	reconnectTimer := time.NewTimer(delay)
 	select {
 	case <-reconnectTimer.C:
 		return true
+
+	case <-ctx.Done():
+		logger.Debug("Interrupt wait as task handler context cancelled")
+		if !reconnectTimer.Stop() { //prevents memory leak
+			<-reconnectTimer.C
+		}
+		return true
+
 	default:
 		return false
 	}
@@ -131,6 +139,12 @@ func WaitForDurationAndInterruptIfRequired(ctx context.Context, eventFlowCtx con
 		return true
 
 	case <-ctx.Done():
+		logger.Debug("Interrupt wait as task handler context cancelled")
+		if !reconnectTimer.Stop() { //prevents memory leak
+			<-reconnectTimer.C
+		}
+		return true
+
 	case <-eventFlowCtx.Done():
 		logger.Debug("Interrupt wait as connection resumed")
 		if !reconnectTimer.Stop() { //prevents memory leak
