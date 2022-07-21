@@ -115,6 +115,7 @@ func NewTaskHandler(ctx context.Context,
 	disconnectedModeTaskEventRetryDelay time.Duration) *TaskHandler {
 	// Create a handler and start the periodic event drain loop
 
+	eventFlowCtx, eventFlowCtxCancel := context.WithCancel(context.Background())
 	taskHandler := &TaskHandler{
 		ctx:                                 ctx,
 		tasksToEvents:                       make(map[string]*taskSendableEvents),
@@ -128,8 +129,8 @@ func NewTaskHandler(ctx context.Context,
 		maxDrainEventsFrequency:             maxDrainEventsFrequency,
 		cfg:                                 cfg,
 		disconnectedModeTaskEventRetryDelay: disconnectedModeTaskEventRetryDelay,
-		eventFlowCtx:                        nil,
-		eventFlowCtxCancel:                  nil,
+		eventFlowCtx:                        eventFlowCtx,
+		eventFlowCtxCancel:                  eventFlowCtxCancel,
 	}
 	go taskHandler.startDrainEventsTicker()
 
@@ -471,9 +472,7 @@ func (handler *TaskHandler) ResumeEventsFlow() {
 	handler.eventFlowCtxLock.Lock()
 	defer handler.eventFlowCtxLock.Unlock()
 
-	if handler.eventFlowCtxCancel != nil {
-		handler.eventFlowCtxCancel()
-	}
+	handler.eventFlowCtxCancel()
 }
 
 //will be called by acs handler while toggling disconnectModeEnabled false to true
