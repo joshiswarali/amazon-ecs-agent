@@ -89,7 +89,7 @@ func RetryWithBackoffCtxForTaskHandler(ctx context.Context, eventFlowCtx context
 			If we were in disconnected mode up to this point and switch to normal mode here,
 			eventFlowCtx is cancelled, and we enter else block
 		*/
-		if cfg.GetDisconnectModeEnabled() {
+		if cfg.GetDisconnectModeEnabled() && eventFlowCtx != nil {
 
 			/*
 				If we switch to normal mode while we are in this portion before calling WaitForDurationAndInterruptIfRequired,
