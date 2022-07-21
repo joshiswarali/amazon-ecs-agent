@@ -349,7 +349,7 @@ func (handler *TaskHandler) submitTaskEvents(taskEvents *taskSendableEvents, cli
 		// If we looped back up here, we successfully submitted an event, but
 		// we haven't emptied the list so we should keep submitting
 		backoff.Reset()
-		retry.RetryWithBackoffForTaskHandler(handler.cfg, taskARN, handler.disconnectedModeTaskEventRetryDelay, backoff, handler.eventFlowCtx, func() error {
+		retry.RetryWithBackoffForTaskHandler(handler.cfg, taskARN, handler.disconnectedModeTaskEventRetryDelay, backoff, &handler.eventFlowCtx, func() error {
 			// Lock and unlock within this function, allowing the list to be added
 			// to while we're not actively sending an event
 			seelog.Debug("TaskHandler: Waiting on semaphore to send events...")
