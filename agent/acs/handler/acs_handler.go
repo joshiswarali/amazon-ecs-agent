@@ -49,7 +49,7 @@ const (
 	//was chosen because typical backoff after disconnecting when DisconnectModeEnabled is off is
 	//~2 minutes. If connection fails for more than 5 minutes, then we can expect disconnection was
 	//expected.
-	disconnectTimeout = 5 * time.Minute
+	disconnectTimeout = 2 * time.Minute
 
 	//Constant interval between reconnecting ACS while the disconnectionTimer is actively running.
 	reconnectToACSTimeout = 1 * time.Minute
