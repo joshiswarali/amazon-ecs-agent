@@ -94,8 +94,8 @@ const (
 	targetLifecycleMaxRetryCount        = 3
 	inServiceState                      = "InService"
 	asgLifecyclePollWait                = time.Minute
-	asgLifecyclePollMax                 = 120              // given each poll cycle waits for about a minute, this gives 2-3 hours before timing out
-	disconnectedModeTaskEventRetryDelay = 10 * time.Minute //this is the time delay between every submit task state change attempt in disconnected mode
+	asgLifecyclePollMax                 = 120             // given each poll cycle waits for about a minute, this gives 2-3 hours before timing out
+	disconnectedModeTaskEventRetryDelay = 1 * time.Minute //this is the time delay between every submit task state change attempt in disconnected mode
 )
 
 var (
